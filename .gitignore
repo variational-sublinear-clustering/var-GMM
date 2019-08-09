@@ -1,0 +1,17 @@
+# git ignore file
+submit-gold*
+
+# Ignore all files with the extension
+*.pyc
+*.txt
+*.log
+*.dat
+*.h5
+*.pdf
+*.json
+
+# Ignore all files ending with ~
+*.*~
+
+# Ignore folders
+datasets/
