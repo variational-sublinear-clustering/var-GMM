@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import unicode_literals
+from builtins import int
 
 import datetime
 import errno
@@ -35,14 +36,16 @@ params = {
     'Cprime'    : 5,
     'G'         : 5,
     'Niter'     : 25,
-    'Ninit'     : 0,
+    'Ninit'     : 5,
     'dataset'   : 'BIRCH2-400',
-    'VERBOSE'   : False,
+    'VERBOSE'   : True,
 }
 
 # parameters given by user via command line
 try:
-    user_params = dict(arg.split('=',1) for arg in sys.argv[1:])
+    user_params = {'algorithm' : sys.argv[1] }
+    if len(sys.argv) > 2:
+        user.params.update(dict(arg.split('=',1) for arg in sys.argv[2:]))
 except:
     print('WARNING: Could not read user parameters properly. Reverting to default parameters.')
     user_params = {}
@@ -52,17 +55,17 @@ params['Cprime'] = int(params['Cprime'])
 params['G'] = int(params['G'])
 params['Niter'] = int(params['Niter'])
 params['Ninit'] = int(params['Ninit'])
-params['VERBOSE'] = True if params['VERBOSE'] == 'True' else False
+params['VERBOSE'] = True if (params['VERBOSE'] == True or params['VERBOSE'] == 'True') else False
 
 # define the outputs
 if params['VERBOSE']:
     params['VERBOSE'] = {
-        'll' : True,
-        'fe' : True,
-        'qe' : True,
-        'cs' : True,
-        'nd' : True,
-        'np' : 5,
+        'll' : True,    # loglikelihood
+        'fe' : True,    # free energy
+        'qe' : True,    # quantization error
+        'cs' : True,    # clustering scores (purity, NMI, AMI)
+        'nd' : True,    # number of distance evaluations
+        'np' : 1,       # picture output every n iterations
     }
 else:
     params['VERBOSE'] = {
@@ -141,10 +144,13 @@ if rank==0:
                 if VERBOSE['cs'] : file.write('#ground truth AMI: ' + str(AMI_score_gt)+'\n')
                 outstr = ('{:'+str(int(np.log10(params['Niter'])+1))+'}\t{:15}\t{:15}\t{:15}\t{:8}\t{:8}\t{:8}\t{:8}\n').format(
                     'n', 'Free Energy', 'LogLikelihood', 
-                    'Q-Error', 'Purity', 'NMI', 'AMI', '#D-Evals'
+                    'Q-Error', 'Purity', 'NMI', 'AMI', '#D-Evals (Speed-Up)'
                 )                
                 file.write(outstr)
-            json.dump([params,data_params], open(filename+"_parameters.txt",'w'))
+            def default(o):
+                if isinstance(o, np.int64): return int(o)  
+                raise TypeError
+            json.dump([params,data_params], open(filename+"_parameters.txt",'w'), default=default)
             break
 else:
     filename = None

@@ -1,6 +1,10 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
+from builtins import range
+
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 import itertools
 import numpy as np
@@ -93,34 +97,38 @@ class TruncatedGaussianMixture(object):
                  'sigma_sq' : self.sigma_sq}
 
         # allocate data points to threads
-        my_n = [i for i in xrange(X.shape[0]) if i*size//X.shape[0] == rank]
+        my_n = [i for i in range(X.shape[0]) if i*size//X.shape[0] == rank]
         my_X = X[my_n]
         print('rank {} data shape: {}'.format(rank, my_X.shape))
 
         my_N, D = my_X.shape
+        N = np.empty((1) , dtype='int32')
+        comm.Allreduce(np.asarray(my_N, dtype='int32'), N, op=MPI.SUM)
+        N = N[0]
+
         C, Cprime, G = self.params['C'], self.params['Cprime'], self.params['G']
         Niter, Ninit = self.params['Niter'], self.params['Ninit']
         algorithm = self.params['algorithm']
         VERBOSE = self.params['VERBOSE']
 
         # initialize K randomly
-        self.K = np.asarray([np.random.choice(C, Cprime) for _ in xrange(my_N)]).astype(np.int32)
+        self.K = np.asarray([np.random.choice(C, Cprime) for _ in range(my_N)]).astype(np.int32)
 
         # initialize G_c randomly, but making sure that c is in G_c
-        if algorithm == 'var-GMM-S':
+        if algorithm[:9] == 'var-GMM-S':
             self.G_c = np.asarray([
                 np.concatenate(
                     [np.asarray([c]),
                      np.random.permutation(
                         np.delete(np.arange(C), np.asarray([c])))
                     ],axis=0)[:G]
-                for c in xrange(C)])
+                for c in range(C)])
         else:
             self.G_c = None
 
         # iterate Ninit times to gain better K and G_c
         if Cprime < C:
-            for _ in xrange(Ninit):
+            for _ in range(Ninit):
                 _, self.K, self.G_c = self._e_step(my_X, algorithm, Cprime)
 
 
@@ -140,7 +148,7 @@ class TruncatedGaussianMixture(object):
                 strpur = '\t{:8.6f}'.format(purity_score) if VERBOSE['cs'] else '\t{:8}'.format('--')
                 strnmi = '\t{:8.6f}'.format(NMI_score) if VERBOSE['cs'] else '\t{:8}'.format('--')
                 strami = '\t{:8.6f}'.format(AMI_score) if VERBOSE['cs'] else '\t{:8}'.format('--')
-                strnd = '\t{}'.format(ndistevals[0]) if VERBOSE['nd'] else '\t{:8}'.format('--')
+                strnd = '\t{}/{} (x{:.2f})'.format(ndistevals[0],N*C, N*C/ndistevals[0]) if VERBOSE['nd'] and self.n_iteration > 0 else '\t{:8}'.format('--')
                 outstr = strn + strfe + strll + strqe + strpur + strnmi + strami + strnd
                 strend = '\n'
                 print(outstr, end=strend)
@@ -167,7 +175,7 @@ class TruncatedGaussianMixture(object):
         # print headers
         if rank == 0:
             outstr = ('{:'+str(int(np.log10(Niter)+1))+'}\t{:13}\t{:13}\t{:13}\t{:8}\t{:8}\t{:8}\t{}').format(
-                'n', 'Free Energy', 'LogLikelihood', 'Q-Error', 'Purity', 'NMI', 'AMI', '#D-Evals')
+                'n', 'Free Energy', 'LogLikelihood', 'Q-Error', 'Purity', 'NMI', 'AMI', '#D-Evals (Speed-Up)')
             print(outstr)
 
         # calculate initial scores (without updating model parameters and
@@ -185,8 +193,6 @@ class TruncatedGaussianMixture(object):
                     )
             sigma_sq = np.zeros(1, dtype='float64')
             comm.Allreduce(my_sigma_sq, sigma_sq, op=MPI.SUM)
-            N = np.empty((1) , dtype='int32')
-            comm.Allreduce(np.asarray(my_N, dtype='int32'), N, op=MPI.SUM)
             sigma_sq /= float(N*D)
             sigma_sq = sigma_sq[0]
             tmp_theta['sigma_sq'] = sigma_sq
@@ -194,7 +200,7 @@ class TruncatedGaussianMixture(object):
 
         #===== Learning iterations ==============
         self.training_time = 0.
-        for self.n_iteration in xrange(1, Niter+1):
+        for self.n_iteration in range(1, Niter+1):
             self.start_time = timer()
             #--- E-step ---
             stats, theta['K'], G_c = self._e_step(my_X, algorithm, Cprime, G, countevals=VERBOSE['nd'])
@@ -282,9 +288,6 @@ class TruncatedGaussianMixture(object):
 
         stats = {}
 
-        G_c = None
-        K = None
-
         def truncate(p, K, fill=-np.inf):
             """ Truncate distribution p to index set K
 
@@ -306,7 +309,7 @@ class TruncatedGaussianMixture(object):
             """
             trunc_idx = self._idx_from_K(K)
             p_trunc = fill*np.ones_like(p, dtype=np.float64)
-            for c in xrange(C):
+            for c in range(C):
                 p_trunc[trunc_idx[c],c] = p[trunc_idx[c],c]
             return p_trunc
 
@@ -360,7 +363,7 @@ class TruncatedGaussianMixture(object):
 
             # do C^2 distance evaluations
             # distances = np.zeros((C, C))
-            # for i in xrange(C-1):
+            # for i in range(C-1):
             #     distances[i,i+1:] = self._distance(self.means[i], self.means[i+1:,:], countevals=countevals)
             #     distances[i+1:,i] = distances[i,i+1:]
             distances = self._distance(self.means[:,np.newaxis,:], self.means[np.newaxis,:,:], countevals=countevals)
@@ -387,7 +390,7 @@ class TruncatedGaussianMixture(object):
             # derive new neighbors from the mean of all cluster data points
             cluster_datapoints = np.argmax(G_n_log_joint_xc, axis=1)
             G_c = np.empty((C, self.params['G'])).astype(np.int32)
-            for c in xrange(C):
+            for c in range(C):
                 cluster_distances = G_n_log_joint_xc[cluster_datapoints == c,:]
 
                 # all_cluster_distances = np.concatenate(comm.allgather(cluster_distances))
@@ -504,7 +507,7 @@ class TruncatedGaussianMixture(object):
 
         # split data between processes if not already distributed
         if not distributed:
-            my_n = [i for i in xrange(X.shape[0]) if i*size//X.shape[0] == rank]
+            my_n = [i for i in range(X.shape[0]) if i*size//X.shape[0] == rank]
             my_X = X[my_n]
             if resp is not None:
                 my_resp = resp[my_n]
@@ -555,7 +558,7 @@ class TruncatedGaussianMixture(object):
         comm = self.comm
 
         my_free_energy = 0.
-        for n in xrange(my_N):
+        for n in range(my_N):
             my_free_energy_n = np.zeros((K[n].shape[0]))
             for i, c in enumerate(K[n]):
                 my_free_energy_n[i] += multivariate_normal.logpdf(
@@ -766,7 +769,7 @@ class TruncatedGaussianMixture(object):
         closest_cluster = np.concatenate(comm.allgather(my_closest_cluster))
 
         # classify cluster by most frequent labels
-        cluster_labels = np.asarray([statsmode(y_true[np.where(closest_cluster==c)])[0][0] if c in closest_cluster else None for c in xrange(means.shape[0])])
+        cluster_labels = np.asarray([statsmode(y_true[np.where(closest_cluster==c)])[0][0] if c in closest_cluster else None for c in range(means.shape[0])])
         my_y_pred = cluster_labels[my_closest_cluster]
         y_pred = np.concatenate(comm.allgather(my_y_pred))
 
@@ -774,8 +777,8 @@ class TruncatedGaussianMixture(object):
         contingency_matrix = metrics.cluster.contingency_matrix(y_true, y_pred)
         # purity
         purity_score = np.sum(np.amax(contingency_matrix, axis=0)) / float(np.sum(contingency_matrix))
-        NMI_score = metrics.normalized_mutual_info_score(y_true, y_pred)
-        AMI_score = metrics.adjusted_mutual_info_score(y_true, y_pred)
+        NMI_score = metrics.normalized_mutual_info_score(y_true, y_pred, average_method='warn')
+        AMI_score = metrics.adjusted_mutual_info_score(y_true, y_pred, average_method='warn')
         return purity_score, NMI_score, AMI_score
 
 
@@ -862,7 +865,7 @@ class TruncatedGaussianMixture(object):
         """
         rank = self.comm.rank
         size = self.comm.size
-        my_n = [i for i in xrange(X.shape[0]) if i*size//X.shape[0] == rank]
+        my_n = [i for i in range(X.shape[0]) if i*size//X.shape[0] == rank]
         my_X = X[my_n]
         return my_X
 
