@@ -45,7 +45,7 @@ params = {
 try:
     user_params = {'algorithm' : sys.argv[1] }
     if len(sys.argv) > 2:
-        user.params.update(dict(arg.split('=',1) for arg in sys.argv[2:]))
+        user_params.update(dict(arg.split('=',1) for arg in sys.argv[2:]))
 except:
     print('WARNING: Could not read user parameters properly. Reverting to default parameters.')
     user_params = {}
