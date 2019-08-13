@@ -70,6 +70,10 @@ class TruncatedGaussianMixture(object):
         self.K = None
 
 
+    def __repr__(self):
+        return f"TruncatedGaussianMixture({self.params})"
+
+
     def fit(self, X, y_true=None, filename=None):
         """ Fit model to data.
 
