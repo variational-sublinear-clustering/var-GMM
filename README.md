@@ -35,6 +35,6 @@ To start, you can for example simply run
 
 ## 4. Disclaimer
 
-This algorithm is not optimized for fastest execution speed, but for research only. As measure for speed, we show the number of distance evaluations wrt the number of distance evaluations used by full GMMs/k-means per iteration.   
+This algorithm is not optimized for fast execution speed. As measure for speed, we show the number of distance evaluations wrt the number of distance evaluations used by full GMMs/k-means per iteration.   
 
-For an implementation of the var-GMM-S algorithm with focus on fastest  real-time execution speed, see [Florian Hirschberger's C++ Code Repositry](https://bitbucket.org/fhirschberger/clustering/).
+For an implementation of the var-GMM-S algorithm with focus on fast real-time execution speed, see the following repository which uses C++ source code [vc-GMM](https://github.com/variational-sublinear-clustering/vc-GMM). The repository is part of the github-organization [Variational Sublinear Clustering](https://github.com/variational-sublinear-clustering), which will integrate further developments/repositories.
